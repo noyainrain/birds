@@ -1,0 +1,9 @@
+{
+    "dependencies": {
+        "phaser": "^3.88"
+    },
+    "devDependencies": {
+        "typescript": "^5.8",
+        "eslint": "^9.25"
+    }
+}
