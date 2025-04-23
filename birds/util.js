@@ -1,4 +1,5 @@
 import {Geom} from "phaser";
+import {stick} from "./sticky.js";
 
 /**
  * TODO.
@@ -62,28 +63,4 @@ export function generateTexture(textures, name, width, height, draw) {
     return /** @type {addImage} */ (
         /** @type {unknown} */ (textures.addImage)
     )(name, context.canvas);
-}
-
-/**
- * @param {CanvasRenderingContext2D} context
- * @param {Geom.Circle} circle
- */
-export function fillCircle(context, circle, {stroke = false} = {}) {
-    context.beginPath();
-    context.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
-    stroke ? context.stroke() : context.fill();
-}
-
-/**
- * @param {CanvasRenderingContext2D} context
- * @param {Geom.Triangle} triangle
- */
-export function fillTriangle(context, triangle, {stroke = false} = {}) {
-    context.beginPath();
-    context.moveTo(triangle.x1, triangle.y1);
-    context.lineTo(triangle.x2, triangle.y2);
-    context.lineTo(triangle.x3, triangle.y3);
-    // TODO why needed to close?
-    context.lineTo(triangle.x1, triangle.y1);
-    stroke ? context.stroke() : context.fill();
 }
