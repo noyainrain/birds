@@ -4,6 +4,10 @@ export class UI extends Scene {
     /** @type {GameObjects.Text?} */
     #text = null;
 
+    constructor() {
+        super({key: "ui", active: true});
+    }
+
     create() {
         const FONT_SIZE = 16;
         const style = {
@@ -13,6 +17,7 @@ export class UI extends Scene {
             this.cameras.main.width - FONT_SIZE, FONT_SIZE, "Test", style
         );
         this.#text.setOrigin(1, 0);
+        console.log("UI CREATED");
     }
 
     update() {

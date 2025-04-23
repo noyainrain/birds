@@ -1,5 +1,6 @@
 import {Game, Scale} from "phaser";
 import {UI} from "./ui.js";
+import {World} from "./world.js";
 
 const game = new Game({
     width: 960,
@@ -14,7 +15,7 @@ const game = new Game({
         //limit: 30,
         forceSetTimeOut: true
     },
-    scene: [new UI()]
+    scene: [new UI(), new World()]
 });
 
 addEventListener("blur", () => {
