@@ -13,12 +13,62 @@ const Size = {
 }
 
 export class Bush extends GameObjects.Image {
+    /** @returns {number} */
+    pull() {
+        return 1;
+    }
 }
 
 export class Tree extends GameObjects.Image {
+    food = 0;
+    nest = false;
+    egg = 0;
+
+    /** @type {World} */
+    scene;
+    info = "";
+
+    /**
+     * @param {World} scene
+     * @param {...unknown} args
+     */
+    constructor(scene, ...args) {
+        super(scene, ...args);
+        this.scene = scene;
+    }
+
+    /**
+     * @param {number} food
+     */
+    push(food) {
+        this.food += food;
+
+        if (!this.nest) {
+            // TODO build nest
+        }
+    }
+
+    turn() {
+        if (this.food > 0) {
+            this.food--;
+            this.egg++;
+        }
+
+        if (this.egg >= Bird.COST) {
+            this.egg = 0;
+            const bird = this.scene.createBird();
+            const position = new Util.Vector2(8 * Size.px, 0).rotate(Math.random() * 2 * Math.PI)
+                .add(this);
+            bird.setPosition(position.x, position.y);
+        }
+
+        this.info = `${this.food}\n${this.egg}/${Bird.COST}`;
+    }
 }
 
 export class Bird extends GameObjects.Image {
+    static COST = 10;
+
     /** @type {Bush?} */
     source = null;
     /** @type {Tree?} */
@@ -33,9 +83,27 @@ export class Bird extends GameObjects.Image {
         this.destination = destination;
         this.setPosition(source.x, source.y);
     }
+
+    /** ... */
+    turn() {
+        if (this.source && this.destination) {
+            this.destination.push(this.source.pull());
+        }
+    }
 }
 
+// Timeline (Winter) + Fin (birds saved, high score, play again)
+// 1. Stash
+// 2. Cat events
+
 export class World extends Scene {
+    static TURN_DURATION = 2000;
+
+    #debugTexts = new WeakMap();
+    /** @type {GameObjects.Group?} */
+    #structures = null;
+    /** @type {GameObjects.Group?} */
+    #birds = null;
     /** @type {Bird?} */
     #bird = null;
     /** @type {GameObjects.Image?} */
@@ -49,6 +117,9 @@ export class World extends Scene {
     }
 
     create() {
+        this.#structures = this.add.group();
+        this.#birds = this.add.group();
+
         // 1.5 is correction for our viewport
         const objectWidth = 44 * Size.px;
         const objectRadius = objectWidth / 2;
@@ -110,14 +181,6 @@ export class World extends Scene {
 
         const gen = randomPoints();
 
-        generateTexture(this.textures, "tree", objectWidth, objectWidth, context => {
-            const triangle = new Geom.Triangle(
-                0, objectWidth - 0.5, objectRadius, 0, objectWidth, objectWidth - 0.5
-            );
-            //context.lineWidth = 2;
-            context.strokeStyle = "#ffffff";
-            fillTriangle(context, triangle, {stroke: true});
-        });
         generateTexture(this.textures, "bush", objectRadius * 2, objectRadius * 2, context => {
             const circle = new Geom.Circle(
                 // objectRadius / 2, objectRadius / 2, objectRadius / 2 - 1
@@ -138,9 +201,9 @@ export class World extends Scene {
             //);
             //tree.setStrokeStyle(1, 0xffffff);
             // const tree = this.add.image(point.x, point.y, "tree");
-            const tree = this.add.existing(new Tree(this, point.x, point.y, "tree"));
-            tree.setOrigin(0.5, 1);
-            tree.setInteractive({dropZone: true});
+            // const tree = this.add.existing(new Tree(this, point.x, point.y, "tree"));
+            const tree = this.createTree();
+            tree.setPosition(point.x, point.y);
         }
         for (let i = 0; i < bushCount; i++) {
             const point = gen.next().value;
@@ -260,6 +323,57 @@ export class World extends Scene {
             this.#bird.assign(object, zone);
         });
 
+        // setInterval(() => this.turn(), 1000);
+        this.time.addEvent({delay: World.TURN_DURATION, loop: true, callback: () => this.turn()});
+    }
+
+    turn() {
+        console.log("TURN");
+        if (!this.#birds) {
+            throw new Error("AAA");
+        }
+        for (const bird of this.#birds.getChildren()) {
+            if (!(bird instanceof Bird)) {
+                throw Error("Assertion failed");
+            }
+            bird.turn();
+        }
+        for (const structure of this.#structures?.getChildren() ?? []) {
+            if (!(structure instanceof Tree)) {
+                throw new Error("Assertion failed");
+            }
+            structure.turn();
+        }
+    }
+
+    update() {
+        for (const structure of this.#structures?.getChildren() ?? []) {
+            if (!(structure instanceof Tree)) {
+                throw new Error("Assertion failed");
+            }
+            let text = this.#debugTexts.get(structure);
+            if (!text) {
+                text = this.add.text(structure.x, structure.y, "");
+                this.#debugTexts.set(structure, text);
+            }
+            text.setText(structure.info);
+        }
+    }
+
+    createTree() {
+        generateTexture(this.textures, "tree", Size.object, Size.object, context => {
+            const triangle = new Geom.Triangle(
+                0, Size.object - 0.5, Size.objectRadius, 0, Size.object, Size.object - 0.5
+            );
+            //context.lineWidth = 2;
+            context.strokeStyle = "#ffffff";
+            fillTriangle(context, triangle, {stroke: true});
+        });
+        const tree = new Tree(this, 0, 0, "tree");
+        tree.setOrigin(0.5, 1);
+        tree.setInteractive({dropZone: true});
+        this.#structures?.add(tree, true);
+        return tree;
     }
 
     /** @returns {Bird} */
@@ -280,6 +394,8 @@ export class World extends Scene {
         const bird = new Bird(this, 0, 0, "bird");
         bird.setOrigin(0.5, 1);
         bird.setInteractive();
-        return this.add.existing(bird);
+        // return this.add.existing(bird);
+        this.#birds?.add(bird, true);
+        return bird;
     }
 }
