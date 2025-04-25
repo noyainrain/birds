@@ -68,9 +68,13 @@ export function stick(shape, ref) {
  * @param {CanvasRenderingContext2D} context
  * @param {Geom.Circle} circle
  */
-export function fillCircle(context, circle, {stroke = false} = {}) {
+export function fillCircle(context, circle, {stroke = false, start = 0, end = 1, closed = false} = {}) {
     context.beginPath();
-    context.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+    console.log("START", start);
+    context.arc(circle.x, circle.y, circle.radius, start * 2 * Math.PI, end * 2 * Math.PI);
+    if (closed) {
+        context.closePath();
+    }
     stroke ? context.stroke() : context.fill();
 }
 
@@ -78,13 +82,15 @@ export function fillCircle(context, circle, {stroke = false} = {}) {
  * @param {CanvasRenderingContext2D} context
  * @param {Geom.Triangle} triangle
  */
-export function fillTriangle(context, triangle, {stroke = false} = {}) {
+export function fillTriangle(context, triangle, {stroke = false, closed = false} = {}) {
     context.beginPath();
     context.moveTo(triangle.x1, triangle.y1);
     context.lineTo(triangle.x2, triangle.y2);
     context.lineTo(triangle.x3, triangle.y3);
     // TODO why needed to close?
-    context.lineTo(triangle.x1, triangle.y1);
+    if (closed) {
+        context.lineTo(triangle.x1, triangle.y1);
+    }
     stroke ? context.stroke() : context.fill();
 }
 
@@ -93,9 +99,15 @@ export function fillTriangle(context, triangle, {stroke = false} = {}) {
  * @param {Geom.Rectangle} rectangle
  */
 export function drawRectangle(context, rectangle, {stroke = false} = {}) {
+    const offset = context.lineWidth / 2;
+    console.log("OFFSET", offset);
     stroke ?
+        //context.strokeRect(
+        //    rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 0.5, rectangle.height - 0.5
+        //) :
         context.strokeRect(
-            rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 0.5, rectangle.height - 0.5
+            rectangle.x + offset, rectangle.y + offset, rectangle.width - offset,
+            rectangle.height - offset
         ) :
         context.fillRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
 }
@@ -105,12 +117,12 @@ export function drawRectangle(context, rectangle, {stroke = false} = {}) {
  * @param {CanvasRenderingContext2D} context - Canvas context
  * @param {Geom.Circle | Geom.Triangle | Geom.Rectangle} shape - Shape to draw
  */
-export function fillShape(context, shape, {stroke = false} = {}) {
+export function fillShape(context, shape, {stroke = false, start = 0, end = 1, closed = false} = {}) {
     if (shape instanceof Geom.Circle) {
         //context.beginPath();
         //context.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
         //context.fill();
-        fillCircle(context, shape, {stroke});
+        fillCircle(context, shape, {stroke, start, end, closed});
     } else if (shape instanceof Geom.Triangle) {
         //context.beginPath();
         //context.moveTo(shape.x1, shape.y1);
@@ -133,8 +145,8 @@ export function fillShape(context, shape, {stroke = false} = {}) {
  * @param {CanvasRenderingContext2D} context
  * @returns {T}
  */
-export function drawSticky(shape, ref, context, {stroke = false} = {}) {
+export function drawSticky(shape, ref, context, {stroke = false, start = 0, end = 1, closed = true} = {}) {
     const s = stick(shape, ref);
-    fillShape(context, s, {stroke});
+    fillShape(context, s, {stroke, start, end, closed});
     return s;
 }
