@@ -3,7 +3,8 @@ import {GameObjects} from "phaser";
 import {generateTexture} from "./util.js";
 
 export const Color = {
-    PRIMARY: "#ffffff"
+    PRIMARY: "#ffffff",
+    BACKGROUND: "#000000"
 };
 
 /** ... */

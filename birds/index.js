@@ -8,7 +8,8 @@ const game = new Game({
     parent: "game",
     scale: {
         mode: Scale.FIT,
-        autoCenter: Scale.Center.CENTER_BOTH
+        autoCenter: Scale.Center.CENTER_BOTH,
+        max: {width: 960, height: 540},
     },
     fps: {
         target: 30,

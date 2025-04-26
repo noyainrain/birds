@@ -13,6 +13,57 @@ const Size = {
     objectRadius: 22 * px
 }
 
+class Food {
+    value = 0;
+    /** @type {Array<GameObjects.Image>} */
+    fruits = [];
+
+    /**
+     * @param {Entity} entity
+     * @param {number} offset
+     */
+    constructor(entity, offset) {
+        this.entity = entity;
+        this.offset = offset;
+    }
+
+    /** @param {number} value */
+    add(value) {
+        const size = Size.object / 8;
+        this.entity.scene.generateTexture("fruit", size, size, context => {
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
+            const body = new Geom.Circle(size / 2, size / 2, size / 2);
+            fillShape(context, body);
+            body.radius -= 0.5;
+            fillShape(context, body, {stroke: true});
+        });
+
+        if (value > 0) {
+            const width = 8;
+            for (let i = this.value; i < this.value + value; i++) {
+                const x = i % width;
+                const y = Math.trunc(i / width);
+                const fruit = new GameObjects.Image(
+                    this.entity.scene, x * size / 2 - width / 2 * size / 2 + size / 4, -y * size / 2 - this.offset, "fruit"
+                );
+                this.fruits.push(fruit);
+                this.entity.add(fruit);
+            }
+		} else {
+            for (let i = this.value; i > this.value + value; i--) {
+                const fruit = this.fruits.pop();
+                if (!fruit) {
+                    throw new Error("Assertion failed");
+                }
+                this.entity.remove(fruit);
+            }
+        }
+
+        this.value += value;
+    }
+}
+
 export class Entity extends GameObjects.Container {
     /** @type {World} */
     scene;
@@ -74,14 +125,18 @@ export class Bush extends Structure {
 
 export class DeciduousTree extends Structure {
     acceptedSources = [Bush];
-    food = 0;
-    nest = false;
+    food = new Food(this, Size.object - Size.object * 5 / 6 / 2);
     egg = 0;
+
+    /** @type {GameObjects.Image?} */
+    #nest = null;
+    /** @type {GameObjects.Image?} */
+    #egg = null;
 
     /** @param {number} food */
     pull(food) {
-        food = Math.min(food, this.food)
-        this.food -= food;
+        food = Math.min(food, this.food.value)
+        this.food.add(-food);
         return food;
     }
 
@@ -89,20 +144,42 @@ export class DeciduousTree extends Structure {
      * @param {number} food
      */
     push(food) {
-        this.food += food;
+        if (!this.#nest) {
+            const size = Size.object / 4;
+            this.scene.generateTexture("egg", size, size, context => {
+                context.strokeStyle = Color.PRIMARY;
+                context.fillStyle = Color.BACKGROUND;
+                const body = new Geom.Circle(size / 2, size / 2, size / 2);
+                fillShape(context, body);
+                body.radius -= 0.5;
+                fillShape(context, body, {stroke: true});
+            });
+            this.#egg = new GameObjects.Image(this.scene, 0, -Size.object + Size.object * 5 / 6 / 2 + size / 2, "egg");
+            this.add(this.#egg);
 
-        if (!this.nest) {
-            // TODO build nest
+            const nestSize = Size.object / 2;
+            this.scene.generateTexture("nest", nestSize, nestSize, context => {
+                context.strokeStyle = Color.PRIMARY;
+                context.fillStyle = Color.BACKGROUND;
+                const body = new Geom.Circle(nestSize / 2, nestSize / 2, nestSize / 2);
+                fillShape(context, body, {end: 0.5});
+                body.radius -= 0.5;
+                fillShape(context, body, {stroke: true, end: 0.5, closed: true});
+            });
+            this.#nest = new GameObjects.Image(this.scene, 0, -Size.object + Size.object * 5 / 6 / 2, "nest");
+            this.add(this.#nest);
         }
 
-        this.info = `${this.food},${this.egg}/${Bird.COST}`;
+        this.food.add(Math.min(food, 2 - this.food.value));
+
+        this.info = `${this.food.value},${this.egg}/${Bird.COST}`;
     }
 
     turn() {
         // if (this.food > 0) {
-        if (this.food >= 2) {
+        if (this.food.value >= 2) {
             // this.food--;
-            this.food -= 2;
+            this.food.add(-2);
             // this.egg++;
             this.egg += 2;
         }
@@ -114,7 +191,11 @@ export class DeciduousTree extends Structure {
             bird.setPosition(position.x, position.y);
         }
 
-        this.info = `${this.food},${this.egg}/${Bird.COST}`;
+        if (this.#egg) {
+            this.#egg.y = -Size.object + 5 / 6 / 2 * Size.object + this.#egg.height / 2 - (this.egg / Bird.COST) * this.#egg.height; 
+        }
+
+        this.info = `${this.food.value},${this.egg}/${Bird.COST}`;
     }
 
     getValue() {
@@ -131,12 +212,12 @@ export class ConiferTree extends Structure {
 export class Trunk extends Structure {
     acceptedSources = [Bush];
 
-    food = 0;
+    food = new Food(this, Math.trunc(Size.object / 4));
 
     /** @param {number} food */
     pull(food) {
-        food = Math.min(food, this.food)
-        this.food -= food;
+        food = Math.min(food, this.food.value)
+        this.food.add(-food);
         return food;
     }
 
@@ -144,8 +225,8 @@ export class Trunk extends Structure {
      * @param {number} food
      */
     push(food) {
-        this.food += food;
-        this.info = this.food.toString();
+        this.food.add(food);
+        this.info = this.food.value.toString();
     }
 
     /**
@@ -153,12 +234,12 @@ export class Trunk extends Structure {
      */
     feed(food) {
         // TODO check boundaries
-        this.food -= food;
-        this.info = this.food.toString();
+        this.food.add(-food);
+        this.info = this.food.value.toString();
     }
 
     getValue() {
-        return this.food;
+        return this.food.value;
     }
 }
 
@@ -246,6 +327,25 @@ export class Bird extends Entity {
                     }
                 }]
             });
+        } else {
+            const t = World.TURN_DURATION / 2;
+            const d = t / 3;
+            const delay = Math.random() * d;
+            const scaleX = Math.random() < 0.5 ? 1 : -1;
+            this.scene.tweens.add({
+                targets: this,
+                duration: 0,
+                delay: delay + 250,
+                props: {scaleX}
+            });
+            this.scene.tweens.add({
+                targets: this,
+                duration: 250,
+                delay,
+                ease: "Cubic.out",
+                yoyo: true,
+                props: {y: `-=${Size.object / 8}`}
+            })
         }
     }
 
@@ -305,6 +405,18 @@ class Cat extends Entity {
             console.log("CAT STOLE", food);
             this.stay--;
             this.info = `${this.stay}/${Cat.TURNS}`;
+
+            const t = World.TURN_DURATION / 2;
+            const d = t / 3;
+            const delay = Math.random() * d;
+            this.scene.tweens.add({
+                targets: this,
+                duration: 250,
+                delay,
+                ease: "Cubic.out",
+                yoyo: true,
+                props: {y: `-=${Size.object / 8}`}
+            })
         }
     }
 
@@ -326,9 +438,10 @@ class Cat extends Entity {
 
 export class World extends Scene {
     static TURN_DURATION = 3000;
-    // static WINTER = 100; // 5 min
-    static WINTER = 40; // 2 min
-    // static WINTER = 21; // 30 sec
+    static WINTER = 100; // 5 min
+    //static WINTER = 40; // 2 min
+    //static WINTER = 20; // 2 min
+    //static WINTER = 11; // 30 sec
 
     /** @returns {GameObjects.Group} */
     get cats() {
@@ -351,11 +464,16 @@ export class World extends Scene {
     #bird = null;
     /** @type {GameObjects.Image?} */
     #selection = null;
+    /** @type {GameObjects.Image?} */
+    #moon = null;
     /** @type {GameObjects.TileSprite?} */
     #assignMarker = null;
     #afterDrag = false;
     /** @type {Time.TimerEvent?} */
     #timer = null;
+
+    /** @type {GameObjects.Text?} */
+    #unknownText = null;
 
     turns = 0;
 
@@ -383,9 +501,20 @@ export class World extends Scene {
         // h = sqrt(3) / 2 * w
         // w = 2 / sqrt(3) * h
 
+        const moonSize = Size.object / 2;
+        this.generateTexture("moon", moonSize, moonSize, context => {
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
+            const body = new Geom.Circle(moonSize / 2, moonSize / 2, moonSize / 2 - 1);
+            fillShape(context, body);
+            fillShape(context, body, {stroke: true});
+        });
+        this.#moon = this.add.image(0, 0, "moon");
+
         // 360
         const nX = Math.trunc(Size.width / objectWidth);
-        const nY = Math.trunc((Size.height - objectWidth) / gapHeight + 1);
+        // const nY = Math.trunc((Size.height - objectWidth) / gapHeight + 1);
+        const nY = Math.trunc((Size.height - objectWidth) / gapHeight);
 
         /** @type {Array<Util.Vector2>} */
         const points = [];
@@ -394,7 +523,8 @@ export class World extends Scene {
                 points.push(
                     new Util.Vector2(
                         x * objectWidth + offset + (y % 2 ? offset : 0),
-                        y * gapHeight + offset
+                        // y * gapHeight + offset
+                        y * gapHeight + objectWidth + gapHeight
                     )
                 );
             }
@@ -443,6 +573,7 @@ export class World extends Scene {
             // const bush = this.add.existing(new Bush(this, point.x, point.y, "bush"));
             const bush = this.createBush();
             bush.setPosition(point.x, point.y);
+            bush.depth = point.y;
         }
         for (let i = 0; i < deciduousTreeCount; i++) {
             const point = gen.next().value;
@@ -457,6 +588,7 @@ export class World extends Scene {
             // const tree = this.add.existing(new Tree(this, point.x, point.y, "tree"));
             const tree = this.createDeciduousTree();
             tree.setPosition(point.x, point.y);
+            tree.depth = point.y;
         }
         for (let i = 0; i < coniferTreeCount; i ++) {
             const point = gen.next().value;
@@ -465,6 +597,7 @@ export class World extends Scene {
             }
             const tree = this.createConiferTree();
             tree.setPosition(point.x, point.y);
+            tree.depth = point.y;
         }
         for (let i = 0; i < trunkCount; i++) {
             const point = gen.next().value;
@@ -473,6 +606,7 @@ export class World extends Scene {
             }
             const trunk = this.createTrunk();
             trunk.setPosition(point.x, point.y);
+            trunk.depth = point.y;
         }
 
         const birdCount = 2;
@@ -497,6 +631,7 @@ export class World extends Scene {
             );
         });
         this.#selection = this.add.image(0, 0, "selection");
+        this.#selection.depth = 10002;
         this.#selection.setVisible(false);
 
         const size = 8 * Size.px;
@@ -508,6 +643,7 @@ export class World extends Scene {
         this.#assignMarker = this.add.tileSprite(100, 100, size * 5, size, "assign-indicator");
         this.#assignMarker.setVisible(false);
         this.#assignMarker.setOrigin(0, 0.5);
+        this.#assignMarker.depth = 10002;
 
         // this.input.setTopOnly(true);
         this.input.on("gameobjectup",
@@ -582,13 +718,26 @@ export class World extends Scene {
                 this.#selection?.setVisible(false);
             }
         });
-        this.input.on("drop", (_, object, zone) => {
+        this.input.on("drop", (pointer, object, zone) => {
             if (!this.#bird) {
                 return;
             }
             console.log("DROPPED", object, zone);
             if (zone.acceptedSources.includes(object.constructor)) {
                 this.#bird.assign(object, zone);
+            } else if (object.acceptedSources.includes(zone.constructor)) {
+                this.#bird.assign(zone, object);
+            } else {
+                this.#unknownText?.setVisible(true);
+                this.#unknownText?.setPosition(pointer.x, pointer.y);
+                //this.#unknownText?.alpha = 1;
+                this.tweens.add({
+                    targets: this.#unknownText,
+                    props: {
+                        y: {value: `-=${this.font.fontSize}`, ease: "Cubic.Out"},
+                        alpha: {value: [1, 0], ease: "Linear"}
+                    }
+                })
             }
         });
 
@@ -600,8 +749,13 @@ export class World extends Scene {
             fontSize: FONT_SIZE
         }
         this.#infoText = this.add.text(
-            this.cameras.main.width - FONT_SIZE, this.cameras.main.height - FONT_SIZE, "Test", style
+            this.cameras.main.width - FONT_SIZE, this.cameras.main.height - FONT_SIZE, "", style
         );
+
+        this.#unknownText = this.write(0, 0, "?");
+        this.#unknownText.setVisible(false);
+        this.#unknownText.setOrigin(0.5, 1);
+        this.#unknownText.depth = 10002;
     }
 
     turn() {
@@ -612,9 +766,13 @@ export class World extends Scene {
         }
 
         if (
-            this.turns === Math.trunc(World.WINTER / 2) ||
-            this.turns === Math.trunc(World.WINTER * 3 / 4)
+            this.turns === Math.trunc(World.WINTER / 4) ||
+            this.turns === Math.trunc(World.WINTER * 2 / 4)
         ) {
+            this.spawnCat();
+        }
+        if (this.turns === Math.trunc(World.WINTER * 3 / 4)) {
+            this.spawnCat();
             this.spawnCat();
         }
 
@@ -645,7 +803,8 @@ export class World extends Scene {
         }
 
         this.turns++;
-        this.#infoText?.setText(`${this.turns}/${World.WINTER}`);
+        this.#moon?.setPosition((this.turns / World.WINTER) * this.cameras.main.width, 0);
+        //this.#infoText?.setText(`${this.turns}/${World.WINTER}`);
         this.#infoText?.setOrigin(1, 0.5);
     }
 
@@ -661,7 +820,7 @@ export class World extends Scene {
         );
 
         function randomTrunk() {
-            let fullTrunks = trunks.filter(trunk => trunk.food >= Bird.COST);
+            let fullTrunks = trunks.filter(trunk => trunk.food.value >= Bird.COST);
             console.log("FULL TRUNKS", fullTrunks.length);
             // let fullTrunks = trunks.filter(trunk => true);
             if (fullTrunks.length === 0) {
@@ -697,12 +856,20 @@ export class World extends Scene {
                 if (migrated > highScore) {
                     localStorage.highScore = migrated;
                 }
-                this.scene.start("fin", {migrated, highScore});
+                this.scene.start("fin", {migrated, highScore, birds: this.#birds?.getLength()});
             }
         });
     }
 
     update() {
+        if (this.#bird) {
+            // const center = this.#bird.getCenter();
+            const center = Geom.Rectangle.GetCenter(this.#bird.input.hitArea);
+            // this.#selection?.setPosition(center.x, center.y);
+            this.#selection?.setPosition(this.#bird.x + center.x, this.#bird.y + center.y);
+        }
+        return;
+
         const entities = [
             ...(this.#structures?.getChildren() ?? []),
             ...(this.#cats?.getChildren() ?? [])
@@ -718,13 +885,6 @@ export class World extends Scene {
                 this.#debugTexts.set(entity, text);
             }
             text.setText(entity.info);
-        }
-
-        if (this.#bird) {
-            // const center = this.#bird.getCenter();
-            const center = Geom.Rectangle.GetCenter(this.#bird.input.hitArea);
-            // this.#selection?.setPosition(center.x, center.y);
-            this.#selection?.setPosition(this.#bird.x + center.x, this.#bird.y + center.y);
         }
     }
 
@@ -743,10 +903,18 @@ export class World extends Scene {
     /** @returns {Bush} */
     createBush() {
         this.generateTexture("bush", Size.object, Size.object, context => {
-            context.strokeStyle = "#ffffff";
-            const circle = new Geom.Circle(Size.object / 2, Size.object, Size.object / 2);
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
+            const size = Size.object * 5 / 6;
+            const circle = new Geom.Circle(Size.object / 2, Size.object, size / 2 - 1);
             console.log("BUUUUUSH");
+            fillShape(context, circle, {start: 0.5, closed: true});
             fillShape(context, circle, {stroke: true, start: 0.5, closed: true});
+
+            const fruitSize = Size.object / 8;
+            const fruit = new Geom.Circle(0, 0, fruitSize / 2 - 0.5);
+            drawSticky({shape: fruit}, {shape: circle, x: 1 / 3, y: 1 / 6}, context, {stroke: true});
+            drawSticky({shape: fruit}, {shape: circle, x: 2 / 3, y: 2 / 6}, context, {stroke: true});
         });
         const body = new GameObjects.Image(this, 0, 0, "bush");
         body.setOrigin(0.5, 1);
@@ -755,7 +923,8 @@ export class World extends Scene {
         bush.setInteractive({
             hitArea: body.getBounds(),
             hitAreaCallback: Geom.Rectangle.Contains,
-            draggable: true
+            draggable: true,
+            dropZone: true
         });
         //this.input.enableDebug(bush);
         this.#structures?.add(bush, true);
@@ -764,12 +933,22 @@ export class World extends Scene {
 
     createDeciduousTree() {
         this.generateTexture("deciduous", Size.object, Size.object, context => {
-            context.strokeStyle = "#ffffff";
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
+            const canvas = new Geom.Rectangle(0, 0, Size.object, Size.object);
+
+            const trunk = new Geom.Triangle(0, Size.object / 2, Size.object / 8, 0, Size.object / 4, Size.object / 2);
+            drawSticky({shape: trunk, y: 1}, {shape: canvas, y: 1}, context, {stroke: true, closed: true});
+
+            const r = Size.object * 5 / 6 / 2;
             const circle = new Geom.Circle(
                 // objectRadius / 2, objectRadius / 2, objectRadius / 2 - 1
-                Size.objectRadius, Size.objectRadius, Size.objectRadius - 1
+                //Size.objectRadius, Size.objectRadius, Size.objectRadius - 1
+                r, r, r - 1
             );
-            fillShape(context, circle, {stroke: true});
+            drawSticky({shape: circle, y: 0}, {shape: canvas, y: 0}, context);
+            drawSticky({shape: circle, y: 0}, {shape: canvas, y: 0}, context, {stroke: true});
+            //fillShape(context, circle, {stroke: true});
         });
         const body = new GameObjects.Image(this, 0, 0, "deciduous");
         body.setOrigin(0.5, 1);
@@ -778,6 +957,7 @@ export class World extends Scene {
         tree.setInteractive({
             hitArea: body.getBounds(),
             hitAreaCallback: Geom.Rectangle.Contains,
+            draggable: true,
             dropZone: true
         });
         //this.input.enableDebug(tree);
@@ -787,12 +967,20 @@ export class World extends Scene {
 
     createConiferTree() {
         this.generateTexture("conifer", Size.object, Size.object, context => {
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
+            const canvas = new Geom.Rectangle(0, 0, Size.object, Size.object);
+
+            const trunk = new Geom.Triangle(0, Size.object / 2, Size.object / 8, 0, Size.object / 4, Size.object / 2);
+            drawSticky({shape: trunk, y: 1}, {shape: canvas, y: 1}, context, {stroke: true, closed: true});
+
+            const size = Size.object * 5 / 6;
             const triangle = new Geom.Triangle(
-                0, Size.object - 0.5, Size.objectRadius, 0, Size.object, Size.object - 0.5
+                0, size - 0.5, size / 2, 0, size, size - 0.5
             );
             //context.lineWidth = 2;
-            context.strokeStyle = "#ffffff";
-            fillTriangle(context, triangle, {stroke: true, closed: true});
+            drawSticky({shape: triangle, y: 0}, {shape: canvas, y: 0}, context, {closed: true});
+            drawSticky({shape: triangle, y: 0}, {shape: canvas, y: 0}, context, {stroke: true, closed: true});
         });
         const body = new GameObjects.Image(this, 0, 0, "conifer");
         body.setOrigin(0.5, 1);
@@ -813,14 +1001,18 @@ export class World extends Scene {
         const width = Size.object;
         const height = Math.trunc(Size.object / 4);
         this.generateTexture("trunk", width, Size.object, context => {
-            context.fillStyle = "#ff0000";
             context.strokeStyle = Color.PRIMARY;
-            fillShape(context, new Geom.Rectangle(0, Size.object - height, width, height), {stroke: true});
+            context.fillStyle = Color.BACKGROUND;
+            context.strokeStyle = Color.PRIMARY;
+            const size = Size.object * 5 / 6;
+            const body = new Geom.Rectangle((Size.object - size) / 2, Size.object - height, size, height);
+            fillShape(context, body);
+            fillShape(context, body, {stroke: true});
         });
         const body = new GameObjects.Image(this, 0, 0, "trunk");
         body.setOrigin(0.5, 1);
         const trunk = new Trunk(this, 0, 0, [body]);
-        trunk.setInteractive({hitArea: body.getBounds(), hitAreaCallback: Geom.Rectangle.Contains, dropZone: true});
+        trunk.setInteractive({hitArea: body.getBounds(), hitAreaCallback: Geom.Rectangle.Contains, draggable: true, dropZone: true});
         //this.input.enableDebug(trunk);
         this.#structures?.add(trunk, true);
         return trunk;
@@ -834,14 +1026,15 @@ export class World extends Scene {
         console.log("SIZES", size, r, beakSize, r - 0.5);
         const width = size + beakSize;
         generateTexture(this.textures, "bird", width, size, context => {
-            context.strokeStyle = "#ffffff";
-            context.fillStyle = Color.PRIMARY;
+            context.strokeStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
             // TODO this should work, hmmmmm
             const body = new Geom.Circle(r, r, r - 0.5);
+            fillCircle(context, body);
             fillCircle(context, body, {stroke: true});
             const beak = new Geom.Triangle(0, 0, beakSize, beakSize / 2, 0, beakSize);
+            drawSticky({shape: beak, x: 0}, {shape: body, x: 1}, context);
             drawSticky({shape: beak, x: 0}, {shape: body, x: 1}, context, {stroke: true});
-            console.log("BEAK", beak);
         });
         this.generateTexture("bird-eye", beakSize, beakSize, context => {
             context.fillStyle = Color.PRIMARY;
@@ -863,6 +1056,7 @@ export class World extends Scene {
         //console.log(bird.getBounds());
         // bird.setInteractive(new Geom.Rectangle(-size / 2, -size, size, size), Geom.Rectangle.Contains);
         bird.setInteractive(body.getBounds(), Geom.Rectangle.Contains);
+        bird.depth = 10001;
         //this.input.enableDebug(bird);
         // return this.add.existing(bird);
         this.#birds?.add(bird, true);
@@ -877,16 +1071,20 @@ export class World extends Scene {
         const eyeSize = size / 4;
         this.generateTexture("cat", size, size + earPlus, context => {
             context.strokeStyle = Color.PRIMARY;
-            context.fillStyle = Color.PRIMARY;
+            context.fillStyle = Color.BACKGROUND;
             const canvas = new Geom.Rectangle(0, 0, size, size + earPlus);
             const body = new Geom.Circle(r, r, r);
+            drawSticky({shape: body, y: 1}, {shape: canvas, y: 1}, context, {closed: false});
             drawSticky({shape: body, y: 1}, {shape: canvas, y: 1}, context, {stroke: true, end: 0.5, closed: false});
             //drawSticky({shape: body, y: 1}, {shape: canvas, y: 1}, context, {stroke: true, start: 0.7, end: 0.8, closed: false});
             const ear = new Geom.Triangle(0, earPlus + r, r / 4, 0, r, earPlus);
+            fillShape(context, ear);
             fillShape(context, ear, {stroke: true});
             const ear2 = new Geom.Triangle(size, earPlus + r, size - r / 4, 0, r, earPlus);
+            fillShape(context, ear2);
             fillShape(context, ear2, {stroke: true});
             const eye = new Geom.Circle(0, 0, eyeSize / 2);
+            context.fillStyle = Color.PRIMARY;
             drawSticky({shape: eye, x: 0}, {shape: body, x: 0, offsetX: eyeSize / 2}, context, {end: 0.5});
             drawSticky({shape: eye, x: 1}, {shape: body, x: 1, offsetX: -eyeSize / 2}, context, {end: 0.5});
             const whiskerH = new Geom.Triangle(0, 0, r, 0, 0, 0);
@@ -902,6 +1100,7 @@ export class World extends Scene {
         const body = new GameObjects.Image(this, 0, 0, "cat");
         body.setOrigin(0.5, 1);
         const cat = new Cat(this, 0, 0, [body]);
+        cat.depth = 10000;
         this.#cats?.add(cat, true);
         return cat;
     }

@@ -129,7 +129,7 @@ export function fillShape(context, shape, {stroke = false, start = 0, end = 1, c
         //context.lineTo(shape.x2, shape.y2);
         //context.lineTo(shape.x3, shape.y3);
         //context.fill();
-        fillTriangle(context, shape, {stroke});
+        fillTriangle(context, shape, {stroke, closed});
     } else if (shape instanceof Geom.Rectangle) {
         // context.fillRect(shape.x, shape.y, shape.width, shape.height);
         drawRectangle(context, shape, {stroke});

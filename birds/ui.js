@@ -30,7 +30,14 @@ export class UI extends Scene {
     }
 }
 
-const HINTS = "Get as many birds as possible through winter";
+const HINTS = `
+Get the birds through winter!
+
+How to control birds:
+1. Click / Tap a bird
+2. Draw a path (e.g. from a bush to a deciduous tree)
+Birds are curious. What paths can they follow?
+`;
 
 /** ... */
 export class Start extends Scene {
@@ -63,7 +70,8 @@ export class Start extends Scene {
             this.scene.start("world");
         });
 
-        const hints = this.write(camera.centerX, camera.height - this.font.fontSize, HINTS);
+        const hints = this.write(camera.centerX, camera.height - this.font.fontSize, HINTS,
+            {align: "center"});
         hints.setOrigin(0.5, 1);
     }
 }
@@ -86,17 +94,23 @@ export class Fin extends Scene {
 
         const migrated = data.migrated === 1 ?
             "1 bird migrated" : `${data.migrated} birds migrated`;
+        const lb = data.birds - data.migrated;
+        let leftBehind = "";
+        if (lb > 0) {
+            leftBehind = lb === 1 ? "(1 bird didn't have enough food)\n" :
+                `(${lb} birds didn't have enough food)\n`;
+        }
 
         let record;
         console.log(data.migrated, data.highScore);
         if (data.migrated > data.highScore) {
             record = "New high score! Amazing!";
         } else {
-            record = `(High Score: ${data.highScore})`;
+            record = `High Score: ${data.highScore}`;
         }
 
         const result = this.write(
-            camera.centerX, camera.centerY, `${migrated}\n${record}`, {align: "center"}
+            camera.centerX, camera.centerY, `${migrated}\n${leftBehind}\n${record}`, {align: "center"}
         );
         result.setOrigin(0.5, 0.5);
 
